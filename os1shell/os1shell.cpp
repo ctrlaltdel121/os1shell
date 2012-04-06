@@ -2,7 +2,7 @@
 // Name        : os1shell.cpp
 // Author      : Jeremy Williams
 // Version     :
-// Copyright   : 
+// Copyright   :
 // Description : A custom shell program
 //============================================================================
 
@@ -13,13 +13,6 @@
 #include <cerrno>
 #include <wait.h>
 using namespace std;
-
-
-void execute(char* progName, char** args, bool bg){
-
-	return;
-
-}
 
 int main() {
 	while(1){
