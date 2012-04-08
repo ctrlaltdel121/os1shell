@@ -16,27 +16,29 @@
 #include <unistd.h>
 using namespace std;
 
-int sigHandleSetup(){
-	//register all signals except Ctrl-/ using registerSignalAction
 
-}
+char **history;
+int histIndex = 0;
+int histSize = 0;
 
-
-void registerSignalAction(int sig, void *func){
-	//create the struct, fill it with data, and call sigaction
+void registerSignalAction(int sig, void (*func)(int)){
+	struct sigaction act;
+	act.sa_handler = func;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	sigaction(sig, &act, NULL);
 }
 
 void printSignal(int sig){
-	// print the signal associated with the number (use a switch)
-}
-
-void handleCtrlC(int sig){
-	//print the history when ctrl-c is found
+	cerr << "Signal #" << sig << " was handled" << endl;
+	perror("OS1Shell");
 }
 
 void waitOnChildExit(int sig){
-	// call wait when the child exits to prevent zombie processes
+	wait(0);
 }
+
+
 
 void addToHistory(char* command, char** history, int histIndex){
 	//add to history, overwriting oldest one if full
@@ -48,15 +50,15 @@ void addToHistory(char* command, char** history, int histIndex){
 }
 
 int handleArrows(){
-	int c = getchar();
+	unsigned char c = getchar();
+	int i = c;
 	if (c == '['){
 		c = getchar();
-		switch(c){
-		case 'A': return -5;
-		case 'B': return -6;
-		default: return -4;
-		}
+		if(c == 'A') return -5;
+		else if(c == 'B') return -6;
+		else return i;
 	}
+	return i;
 }
 
 int getKeyPress(){
@@ -69,8 +71,9 @@ int getKeyPress(){
 
 void clearLine(){
 	cout << string(65, '\b');     //backspaces the line away
+	cout << string(65, ' ');
+	cout << string(65, '\b');
 	cout << "OS1Shell -> ";
-
 }
 
 
@@ -101,11 +104,59 @@ void printHistory(char** history, int histIndex){
 	}
 }
 
+void handleCtrlC(int sig){
+	cout << endl;
+	printHistory(history, histIndex);
+}
+
+void sigHandleSetup(){
+
+	struct sigaction act;
+	act.sa_handler = printSignal;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	sigaction(1, &act, NULL);
+	sigaction(4, &act, NULL);
+	sigaction(5, &act, NULL);
+	sigaction(6, &act, NULL);
+	sigaction(7, &act, NULL);
+	sigaction(8, &act, NULL);
+	sigaction(10, &act, NULL);
+	sigaction(11, &act, NULL);
+	sigaction(12, &act, NULL);
+	sigaction(13, &act, NULL);
+	sigaction(14, &act, NULL);
+	sigaction(15, &act, NULL);
+	sigaction(20, &act, NULL);
+	sigaction(21, &act, NULL);
+	sigaction(22, &act, NULL);
+	sigaction(23, &act, NULL);
+	sigaction(24, &act, NULL);
+	sigaction(25, &act, NULL);
+	sigaction(26, &act, NULL);
+	sigaction(27, &act, NULL);
+	sigaction(28, &act, NULL);
+	sigaction(29, &act, NULL);
+	sigaction(30, &act, NULL);
+	sigaction(31, &act, NULL);
+
+	struct sigaction act2;
+	act2.sa_handler = handleCtrlC;
+	sigemptyset(&act2.sa_mask);
+	act2.sa_flags = 0;
+	sigaction(2, &act2, NULL);
+
+
+	struct sigaction act3;
+	act3.sa_handler = SIG_IGN;
+	sigemptyset(&act3.sa_mask);
+	act3.sa_flags = SA_NOCLDWAIT;
+	sigaction(SIGCHLD, &act3, NULL);
+}
+
 int main() {
 
-	char **history;
-	int histIndex = 0;
-	int histSize = 0;
+
 	history = new char *[20];
 	for(int i = 0; i<20; i++){
 		history[i]= new char[65];
@@ -115,22 +166,20 @@ int main() {
 	while(1){
 		cout << "OS1Shell -> ";
 		char userin[65];
-		char *command = NULL;
 		bool runInBackground = false;
 		initTerm();
 		int count=0;
 		int arrowHistoryPos = -1;
 		int ch=getKeyPress();
-		bool restart = false;
 		bool gotReturn = false;
 
 		while(count<64 && ch!='\n' && ch!='\r'){
-			switch(ch){
-			case 4:
+			if(ch == 4){
 				cout << endl;
 				resetTerm();
 				return 0;
-			case -5:
+			}
+			else if (ch == -5){
 				if (arrowHistoryPos == -1){    //history mode has not been activated
 					arrowHistoryPos = histIndex;
 				}
@@ -140,23 +189,28 @@ int main() {
 				}
 				if(arrowHistoryPos == histIndex){
 					ch = getKeyPress();  //if there is no earlier history, do nothing and wait for next character
-					break;
+					continue;
 				}
 				else{
-					clearLine();
-					char histCommand[65];
-					strcpy(histCommand, history[arrowHistoryPos]);
-					printf(histCommand, stdin);
-					command = history[arrowHistoryPos];
-					count = strlen(history[arrowHistoryPos]) -1;
+					if (history[arrowHistoryPos] != NULL){
+						if(arrowHistoryPos >= 0){
+							clearLine();
+							strcpy(userin, history[arrowHistoryPos]);
+							printf(userin, stdin);
+							count = strlen(userin) -1;
+							ch = getKeyPress();
+							continue;
+						}
+					}
 
 
 				}
+			}
 
-			case -6:
+			else if (ch == -6){
 			    if(arrowHistoryPos == -1){
 					ch = getKeyPress();  //if the up arrow has not been pressed, we can't go down. ignore arrow.
-					break;
+					continue;
 				}
 				arrowHistoryPos++;
 				if (arrowHistoryPos == histSize){
@@ -165,59 +219,77 @@ int main() {
 				else if(arrowHistoryPos == histIndex){
 					clearLine();
 					arrowHistoryPos = -1;
-					break;
+					ch = getKeyPress();
+					continue;
 				}
 				else{
 					clearLine();
-					char histCommand[65];
-					strcpy(histCommand, history[arrowHistoryPos]);
-					printf(histCommand, stdin);
-					command = history[arrowHistoryPos];
-					count = strlen(history[arrowHistoryPos]) -1;
+					strcpy(userin, history[arrowHistoryPos]);
+					printf(userin, stdin);
+					count = strlen(userin) -1;
+					ch = getKeyPress();
+					continue;
 
 				}
-			case -4:
-				// print invalid input, set count to zero, break
-			default:
-			    userin[count]=ch;
-			    count=count+1;
-			    putchar(ch);
-			    ch=getKeyPress();
-
+			}
+			else{
+				if(ch == 127){
+					if (count > 0){
+						printf("\b \b");
+						count--;
+					}
+					ch = getKeyPress();
+					continue;
+				}
+				else if(ch == -1) {
+					ch = getKeyPress();
+					continue;
+				}
+				else{
+					userin[count]=ch;
+					count++;
+					cout << (unsigned char)(ch);
+					ch=getKeyPress();
+					continue;
+				}
 			}
 
 		}
 		cout << endl;
+
+		if (count == 64 && userin[63] != '\n'){
+			cerr << "Too many characters "<< endl;
+			continue;
+		}
 		userin[count]='\0';
 
-		char line[65];
 
-		if(command == NULL){
-			strcpy(line, userin);
-		}
-		else{
-		    strcpy(line, command);
-		}
-
-
-
-		//getsReturn = fgets(userin, 65, stdin);  //get up to 64 characters from user
-		for(int i = 0; i<int(strlen(line)); i++){
-			if(line[i] == '&'){
-				runInBackground = true;
-				line[i] = 0;
-			}
-		}
-
-
-		if (strlen(line)==0){
+		if (strlen(userin)==0){
 			continue;
 		}
 
+		char historyCommand[] = "history";
+		if(strcmp(userin, historyCommand) == 0){
+			printHistory(history, histIndex);
+			continue;
+		}
+		else addToHistory(userin, history, histIndex);
 
-		char* tokens[strlen(line)];
+
+		for(int i = 0; i<int(strlen(userin)); i++){
+			if(userin[i] == '&'){
+				runInBackground = true;
+				userin[i] = 0;
+			}
+		}
+
+		if (strlen(userin)==0){
+			continue;
+		}
+
+		char* tokens[strlen(userin)];
 		char* token;
-		token = strtok(line, " ");
+		token = strtok(userin, " ");
 		int i = 0;
 		while (token != NULL){
 			tokens[i] = token;
@@ -227,37 +299,28 @@ int main() {
 		tokens[i] = NULL;
 
 		char* progName = tokens[0];  			  // set the program name to the first argument
-	    //cout << progName << endl;
-		//cout << runInBackground << endl;
-		//for (int j = 0; j<i; j++){
-		//	cout << tokens[j] << endl;
-		//}
 
 		if(strlen(progName)>0){
-			char historyCommand[] = "history";
-			if(strcmp(progName, historyCommand) == 0){
-				printHistory(history, histIndex);
-				continue;
-			}
-			addToHistory(progName, history, histIndex);
+
 			histIndex = histIndex+1 % 20;
 			if(histSize < 20) histSize++;
 			int pid = fork();
 			if (pid == 0){
 				int status = execvp(progName, tokens);
-				cout << status << endl;
-				cout << strerror(errno) << endl;
+				if(status == -1) perror("Execvp error");
 			}
 			else if (pid > 0){
 				if(!runInBackground)
 					waitpid(pid, 0, 0);
-			}else;
+			}else{
+				perror("Fork error");
+			}
 		}
 	}
 
 	for( int i = 0 ; i < 20 ; i++ )
-	delete [] history[i] ;
-	delete [] history;
+	delete[] history[i];
+	delete[] history;
 
 
 	resetTerm();
