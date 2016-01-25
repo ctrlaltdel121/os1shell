@@ -2,6 +2,7 @@
   "name": "os1shell",
   "description": "",
   "scripts": {
+    "pr-predestroy":"echo \"hello world\"; exit 1"
   },
   "env": {
   },
